@@ -1,16 +1,16 @@
-package io.security.basicsecurity;
+package io.security.basicsecurity.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import io.security.basicsecurity.config.handler.AccessDeniedExceptionHandler;
+import io.security.basicsecurity.config.handler.AuthenticationExceptionHandler;
+import io.security.basicsecurity.config.handler.FailureHandler;
+import io.security.basicsecurity.config.handler.SuccessHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
@@ -24,8 +24,19 @@ import java.io.IOException;
 @EnableWebSecurity
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
-    @Autowired
-    UserDetailsService userDetailsService;
+    private final UserDetailsService userDetailsService;
+    private final SuccessHandler successHandler;
+    private final FailureHandler failureHandler;
+    private final AuthenticationExceptionHandler authenticationExceptionHandler;
+    private final AccessDeniedExceptionHandler accessFailureHandler;
+
+    public SecurityConfig(UserDetailsService userDetailsService, SuccessHandler successHandler, FailureHandler failureHandler, AuthenticationExceptionHandler authenticationExceptionHandler, AccessDeniedExceptionHandler accessFailureHandler) {
+        this.userDetailsService = userDetailsService;
+        this.successHandler = successHandler;
+        this.failureHandler = failureHandler;
+        this.authenticationExceptionHandler = authenticationExceptionHandler;
+        this.accessFailureHandler = accessFailureHandler;
+    }
 
     /**
      * 계정 관리자 빌더를 통해 계정을 생성할 수 있다.
@@ -41,6 +52,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http
                 .authorizeRequests()
+                .antMatchers("/login").permitAll()
                 .antMatchers("/user").hasRole("USER")
                 .antMatchers("/admin/pay").hasRole("ADMIN")
                 .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
@@ -48,25 +60,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         http
                 .formLogin()
 //                .loginPage("/loginPage") // 로그인하는 페이지 url 경로 (인증 없이도 접근이 가능하도록 해줘야함)
-                .defaultSuccessUrl("/") // 로그인 성공하면 가지는 url 경로
+//                .defaultSuccessUrl("/") // 로그인 성공하면 가지는 url 경로
                 .failureUrl("/login") // 로그인 실패하면 가지는 url 경로
                 .usernameParameter("userId") // 로그인 id key
                 .passwordParameter("passwd") // 로그인 password key
                 .loginProcessingUrl("/login_proc") // form action url
-                .successHandler(new AuthenticationSuccessHandler() { // 익명 클래스 객체를 사용해서 handler 세팅
-                    @Override
-                    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-                        System.out.println("authentication = " + authentication.getName());
-                        response.sendRedirect("/"); // 성공하면 root로 이동하도록 핸들러를 작성. defaultSuccessUrl 해놓은 설정과 중복되는 설정.
-                    }
-                })
-                .failureHandler(new AuthenticationFailureHandler() {
-                    @Override
-                    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
-                        System.out.println("exception = " + exception.getMessage());
-                        response.sendRedirect("/login"); // 실패하면 /login 으로 이동하도록 실패 핸들러 작성. failureUrl 로 해놓은 설정과 중복되는 설정
-                    }
-                })
+                .successHandler(successHandler)
+                .failureHandler(failureHandler)
                 .permitAll();
 
         http
@@ -86,20 +86,24 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                         response.sendRedirect("/login");
                     }
                 })
-                .deleteCookies("remember-me") //
-                ;
+                .deleteCookies("remember-me");
 
         http
                 .rememberMe()
                 .rememberMeParameter("remember")
                 .tokenValiditySeconds(3600)
-                .userDetailsService(userDetailsService)
-                .and()
+                .userDetailsService(userDetailsService);
+
+        http
                 .sessionManagement() // 동시세션 제어 관리
                 .maximumSessions(1) // 최대 동시 세션 수
                 .maxSessionsPreventsLogin(true) // true : 동시 세션 차단 전략(로그인을 실패하게 하는 전략, false : 기존 로그인 되어있는 계정을 로그아웃 시키는 전략
                 .and()
-                .sessionFixation().changeSessionId() // 세션 고정 보호. changeSessionId가 기본값이라서 안해줘도 된다.
-        ;
+                .sessionFixation().changeSessionId(); // 세션 고정 보호. changeSessionId가 기본값이라서 안해줘도 된다.
+
+        http
+                .exceptionHandling()
+//                .authenticationEntryPoint(authenticationExceptionHandler) // 인증 실패 에러 처리 핸들러
+                .accessDeniedHandler(accessFailureHandler); // 인가 실패 에러 처리 핸들러
     }
 }
