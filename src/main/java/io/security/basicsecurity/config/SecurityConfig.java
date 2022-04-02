@@ -5,6 +5,7 @@ import io.security.basicsecurity.config.handler.AuthenticationExceptionHandler;
 import io.security.basicsecurity.config.handler.FailureHandler;
 import io.security.basicsecurity.config.handler.SuccessHandler;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,6 +23,7 @@ import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
+@Order(1) // 이걸 0으로 바꾸고 /secondConfig로 접근하면 이 클래스의 필터가 먼저 동작하고, 이 필터는 모든 경로에 대해 인증이 필요하기 때문에 로그인 페이지로 이동된다.
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final UserDetailsService userDetailsService;
